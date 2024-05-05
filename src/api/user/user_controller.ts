@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import * as dotenv from "dotenv";
 import path from "path";
+
 dotenv.config({
   path: path.join(__dirname, "../../.env"),
 });
@@ -12,10 +13,9 @@ export const getUser = async (
   next: NextFunction
 ) => {
   const { db } = req.app.locals;
-  const data = req.body;
   try {
-    const { userName, password } = req.body;
-    const findUser = await db.collection("user").findOne({ userName });
+    const { username, password } = req.body;
+    const findUser = await db.collection("user").findOne({ username });
     if (!findUser) {
       throw new Error("User not found please login!");
     }
@@ -25,7 +25,7 @@ export const getUser = async (
     );
     if (findUser && matchPassword) {
       const token = jwt.sign(
-        { user_id: findUser._id, userName },
+        { user_id: findUser._id, username },
         process.env.TOKEN_KEY as string,
         {
           expiresIn: "2h",
@@ -34,6 +34,8 @@ export const getUser = async (
 
       // save user token
       findUser.token = token;
+      delete findUser.encryptedPassword;
+
       res.send({ status: 200, message: "Login Successful", data: findUser });
     } else {
       throw new Error("Invalid Credentials");
@@ -49,11 +51,10 @@ export const addUser = async (
   next: NextFunction
 ) => {
   const { db } = req.app.locals;
-  const data = req.body;
   try {
-    const { userName, email, password } = req.body;
+    const { username, email, password } = req.body;
     const userExist = await db.collection("user").findOne({ email });
-    const userNameExist = await db.collection("user").findOne({ userName });
+    const userNameExist = await db.collection("user").findOne({ username });
     if (userExist) {
       throw new Error("User already exists");
     }
@@ -62,12 +63,12 @@ export const addUser = async (
     }
     const encryptedPassword = await bcrypt.hash(password, 10);
     const newUser = await db.collection("user").insertOne({
-      userName,
+      username,
       email,
       encryptedPassword,
     });
     const token = jwt.sign(
-      { user_id: newUser._id, userName },
+      { user_id: newUser._id, username },
       process.env.TOKEN_KEY as string,
       {
         expiresIn: "2h",
@@ -77,6 +78,6 @@ export const addUser = async (
     newUser.token = token;
     res.send({ status: 200, newUser, message: "New user created" });
   } catch (e) {
-    console.log(e);
+    next(e);
   }
 };
