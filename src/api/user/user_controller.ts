@@ -1,8 +1,9 @@
 import { Request, NextFunction, Response } from "express";
-import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
 import * as dotenv from "dotenv";
 import path from "path";
+import service from "./user_service";
+import { cookieOptions } from "../../constant/constant";
+import ApiError from "../../utils/ApiError";
 
 dotenv.config({
   path: path.join(__dirname, "../../.env"),
@@ -14,32 +15,14 @@ export const getUser = async (
 ) => {
   const { db } = req.app.locals;
   try {
-    const { username, password } = req.body;
-    const findUser = await db.collection("user").findOne({ username });
-    if (!findUser) {
-      throw new Error("User not found please login!");
-    }
-    const matchPassword = await bcrypt.compare(
-      password,
-      findUser.encryptedPassword
+    const { loggedInUser, accessToken, refreshToken } = await service.findUser(
+      db,
+      req.body
     );
-    if (findUser && matchPassword) {
-      const token = jwt.sign(
-        { user_id: findUser._id, username },
-        process.env.TOKEN_KEY as string,
-        {
-          expiresIn: "2h",
-        }
-      );
-
-      // save user token
-      findUser.token = token;
-      delete findUser.encryptedPassword;
-
-      res.send({ status: 200, message: "Login Successful", data: findUser });
-    } else {
-      throw new Error("Invalid Credentials");
-    }
+    res
+      .cookie("accessToken", accessToken, cookieOptions)
+      .cookie("refreshToken", refreshToken, cookieOptions)
+      .send({ status: 200, data: loggedInUser, message: "User logged in successfully" });
   } catch (e) {
     next(e);
   }
@@ -52,31 +35,60 @@ export const addUser = async (
 ) => {
   const { db } = req.app.locals;
   try {
-    const { username, email, password } = req.body;
-    const userExist = await db.collection("user").findOne({ email });
-    const userNameExist = await db.collection("user").findOne({ username });
-    if (userExist) {
-      throw new Error("User already exists");
-    }
-    if (userNameExist) {
-      throw new Error("Username already exists");
-    }
-    const encryptedPassword = await bcrypt.hash(password, 10);
-    const newUser = await db.collection("user").insertOne({
-      username,
-      email,
-      encryptedPassword,
-    });
-    const token = jwt.sign(
-      { user_id: newUser._id, username },
-      process.env.TOKEN_KEY as string,
-      {
-        expiresIn: "2h",
-      }
-    );
-    // save user token
-    newUser.token = token;
-    res.send({ status: 200, newUser, message: "New user created" });
+    const data = await service.createUser(db, req.body);
+    res.send({ status: 200, data, message: "New user created successfully" });
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const refreshAccessToken = async (
+  req: Request | any,
+  res: Response,
+  next: NextFunction
+) => {
+  const { db } = req.app.locals;
+  try {
+    const incomingRefreshToken = req.cookies.refreshToken;
+    if(!incomingRefreshToken) throw new ApiError(401,"Unauthorized Request");
+  
+    const {accessToken, refreshToken} = await service.refreshAccessToken(db, incomingRefreshToken);
+    res
+    .cookie("accessToken", accessToken, cookieOptions)
+    .cookie("refreshToken", refreshToken, cookieOptions)
+    .send({ status: 200, data: {}, message: "User logged in successfully" });
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const logoutUser = async (
+  req: Request | any,
+  res: Response,
+  next: NextFunction
+) => {
+  const { db } = req.app.locals;
+  try {
+  
+    const data = await service.logoutUser(db, req.user);
+    res
+    .clearCookie("accessToken", cookieOptions)
+    .clearCookie("refreshToken", cookieOptions)
+    .send({ status: 200, data: data, message: "User logged out successfully" });
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const me = async (
+  req: Request | any,
+  res: Response,
+  next: NextFunction
+) => {
+  const { db } = req.app.locals;
+  try {
+    console.log("ji")
+    res.send({ status: 200, data: req.user, message: "User logged out successfully" });
   } catch (e) {
     next(e);
   }
