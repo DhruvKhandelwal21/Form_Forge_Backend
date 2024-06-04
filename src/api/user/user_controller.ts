@@ -87,7 +87,6 @@ export const me = async (
 ) => {
   const { db } = req.app.locals;
   try {
-    console.log("ji")
     res.send({ status: 200, data: req.user, message: "User logged out successfully" });
   } catch (e) {
     next(e);

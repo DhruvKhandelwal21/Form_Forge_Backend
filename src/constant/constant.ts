@@ -18,7 +18,8 @@ export const bcryptConfig = {
   saltCount: '8',
 };
 
-export const cookieOptions = {
+export const cookieOptions:any = {
   httpOnly: true,
   secure: true,
+  sameSite:'none'
 }
