@@ -10,11 +10,8 @@ export const createUserValidation = {
       password: {
         type: "string",
       },
-      confirmPassword: {
-        type: "string",
-      }
     },
-    required: ["userName", "email", "password", "confirmPassword"],
+    required: ["userName", "email", "password"],
     additionalProperties: false,
 }
 
